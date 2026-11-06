@@ -1,0 +1,39 @@
+plugins {
+    id 'com.android.application'
+}
+
+def runNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger()
+
+android {
+    namespace 'de.spiasm.schiffe3d'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "de.spiasm.schiffe3d"
+        minSdk 24
+        targetSdk 34
+        versionCode runNumber
+        versionName "1.0." + runNumber
+    }
+
+    signingConfigs {
+        fixed {
+            storeFile file('schiffe3d.keystore')
+            storePassword 'schiffe3d'
+            keyAlias 'schiffe3d'
+            keyPassword 'schiffe3d'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.fixed
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+        encoding 'UTF-8'
+    }
+}

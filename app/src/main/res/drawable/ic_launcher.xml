@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Hintergrund: Himmel, Wasser, Tiefe -->
+    <path android:fillColor="#7FB9E6" android:pathData="M0,0h108v40h-108z" />
+    <path android:fillColor="#2368A8" android:pathData="M0,40h108v34h-108z" />
+    <path android:fillColor="#102A4C" android:pathData="M0,74h108v34h-108z" />
+    <!-- Flugzeug -->
+    <path android:fillColor="#FFFFFF" android:pathData="M30,22h40l6,-4h4l-4,6h-46z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M46,22l8,-10h5l-4,10z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M48,24l8,8h5l-4,-8z" />
+    <!-- Schiff -->
+    <path android:fillColor="#8A9099" android:pathData="M24,46h60l-8,12h-44z" />
+    <path android:fillColor="#8A9099" android:pathData="M44,38h18v8h-18z" />
+    <!-- U-Boot -->
+    <path android:fillColor="#9CB071" android:pathData="M30,86a8,8 0,0 1,8 -8h32a8,8 0,0 1,0 16h-32a8,8 0,0 1,-8 -8z" />
+    <path android:fillColor="#9CB071" android:pathData="M50,72h8v6h-8z" />
+</vector>
