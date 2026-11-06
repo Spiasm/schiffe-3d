@@ -47,22 +47,17 @@ public class GameView extends View {
     private final float[] dst = new float[8];
 
     private float downX, downY;
+    private boolean dragging;
+    private final Matrix inv = new Matrix();
+    private final float[] pt = new float[2];
+    private final long startTime = android.os.SystemClock.uptimeMillis();
+    private android.graphics.LinearGradient[] skies;
+    private int skyH;
 
-    public GameView(Context c) {
-        super(c);
-        label.setTextAlign(Paint.Align.CENTER);
-        line.setColor(0x55FFFFFF);
-        line.setStyle(Paint.Style.STROKE);
-        stroke.setStyle(Paint.Style.STROKE);
-        stroke.setStrokeCap(Paint.Cap.ROUND);
-        stroke.setStrokeJoin(Paint.Join.ROUND);
-    }
-
-    /** Ebene wechseln, mit Animation. */
+    /** Ebene wechseln, mit Animation (auch zurückfedern, wenn target == layer). */
     public void setLayer(int target) {
         if (target < 0 || target >= Game.LAYERS) return;
-        if (target == layer && anim == null) {
-            pos = target;
+        if (target == layer && anim == null && pos == target) {
             invalidate();
             return;
         }
@@ -71,8 +66,8 @@ public class GameView extends View {
         anim = null;
         if (old != null) old.cancel();
         final ValueAnimator a = ValueAnimator.ofFloat(pos, target);
-        a.setDuration(380);
-        a.setInterpolator(new DecelerateInterpolator());
+        a.setDuration(420);
+        a.setInterpolator(new DecelerateInterpolator(1.6f));
         a.addUpdateListener(v -> {
             if (anim != a) return;
             pos = (float) v.getAnimatedValue();
@@ -93,8 +88,9 @@ public class GameView extends View {
 
     /** Ebene sofort setzen (ohne Animation). */
     public void jumpToLayer(int target) {
-        if (anim != null) anim.cancel();
+        ValueAnimator old = anim;
         anim = null;
+        if (old != null) old.cancel();
         layer = target;
         pos = target;
         invalidate();
@@ -103,62 +99,165 @@ public class GameView extends View {
     @Override
     protected void onMeasure(int widthSpec, int heightSpec) {
         int w = MeasureSpec.getSize(widthSpec);
-        setMeasuredDimension(w, Math.round(w * 1.36f));
+        setMeasuredDimension(w, Math.round(w * 1.08f));
     }
 
-    private float boardTop() {
-        return getHeight() / 2f - getWidth() / 2f;
+    /** Perspektive: Brett liegt schräg (ca. 45°) wie auf einem Tisch, hinten schmaler. */
+    private void boardMatrix(Matrix m, float w, float h) {
+        float near = w * 0.99f;
+        float far = w * 0.74f;
+        float bh = w * 0.80f;
+        float cx = w / 2f, cy = h / 2f + w * 0.01f;
+        float sz = w * (Game.N + 2) / (Game.N + 1f); // Brett inkl. Rand rundum
+        src[0] = 0; src[1] = 0;
+        src[2] = sz; src[3] = 0;
+        src[4] = sz; src[5] = sz;
+        src[6] = 0; src[7] = sz;
+        dst[0] = cx - far / 2; dst[1] = cy - bh / 2;
+        dst[2] = cx + far / 2; dst[3] = cy - bh / 2;
+        dst[4] = cx + near / 2; dst[5] = cy + bh / 2;
+        dst[6] = cx - near / 2; dst[7] = cy + bh / 2;
+        m.setPolyToPoly(src, 0, dst, 0, 4);
     }
 
     @Override
     protected void onDraw(Canvas c) {
         if (game == null) return;
         float w = getWidth(), h = getHeight();
+        float t = (android.os.SystemClock.uptimeMillis() - startTime) / 1000f;
 
-        // Reihenfolge: am weitesten entfernte Ebene zuerst
-        Integer[] order = {0, 1, 2};
-        java.util.Arrays.sort(order, (a, b) -> Float.compare(Math.abs(b - pos), Math.abs(a - pos)));
-
-        for (int i : order) {
+        for (int i = 0; i < Game.LAYERS; i++) {
             float d = i - pos;
-            if (Math.abs(d) > 1.6f) continue;
-            float ad = Math.min(1f, Math.abs(d));
-            float scale = 1f - 0.12f * ad;
-            float halfH = w / 2f * (1f - 0.64f * ad) * scale;
-            float near = w * scale;
-            float far = near * (1f - 0.24f * ad);
-            float cx = w / 2f;
-            float cy = h / 2f + d * w * 0.56f;
+            if (Math.abs(d) >= 1f) continue;
+            c.save();
+            c.translate(0, d * h);
+            c.clipRect(0, 0, w, h);
+            drawScene(c, i, w, h, t);
 
-            src[0] = 0; src[1] = 0;
-            src[2] = w; src[3] = 0;
-            src[4] = w; src[5] = w;
-            src[6] = 0; src[7] = w;
-            float topW = d < 0 ? far : near;
-            float botW = d < 0 ? near : far;
-            dst[0] = cx - topW / 2; dst[1] = cy - halfH;
-            dst[2] = cx + topW / 2; dst[3] = cy - halfH;
-            dst[4] = cx + botW / 2; dst[5] = cy + halfH;
-            dst[6] = cx - botW / 2; dst[7] = cy + halfH;
-            mtx.setPolyToPoly(src, 0, dst, 0, 4);
+            boardMatrix(mtx, w, h);
+            // Schatten unter dem Brett
+            fill.setColor(0x55000000);
+            path.reset();
+            path.moveTo(dst[0] + w * 0.02f, dst[1] + w * 0.03f);
+            path.lineTo(dst[2] + w * 0.02f, dst[3] + w * 0.03f);
+            path.lineTo(dst[4] + w * 0.02f, dst[5] + w * 0.045f);
+            path.lineTo(dst[6] + w * 0.02f, dst[7] + w * 0.045f);
+            path.close();
+            c.drawPath(path, fill);
+            // Brettkante vorne (Dicke)
+            fill.setColor(0xFF0A1220);
+            path.reset();
+            path.moveTo(dst[6], dst[7]);
+            path.lineTo(dst[4], dst[5]);
+            path.lineTo(dst[4], dst[5] + w * 0.03f);
+            path.lineTo(dst[6], dst[7] + w * 0.03f);
+            path.close();
+            c.drawPath(path, fill);
 
             c.save();
             c.concat(mtx);
             drawLayer(c, i, w);
-            if (ad > 0.01f) {
-                fill.setColor(BG);
-                fill.setAlpha(Math.round(120 * ad));
-                c.drawRect(0, 0, w, w, fill);
-                fill.setAlpha(255);
-            }
+            c.restore();
+
+            // Ebenen-Name
+            label.setColor(0xEEFFFFFF);
+            label.setTextSize(w * 0.05f);
+            label.setFakeBoldText(true);
+            c.drawText(Game.LAYER_ICONS[i] + " " + Game.LAYER_NAMES[i], w / 2, h * 0.075f, label);
+            label.setFakeBoldText(false);
             c.restore();
         }
 
-        // Pfeil-Hinweise zum Wischen
-        label.setColor(0x99FFFFFF);
-        label.setTextSize(w * 0.04f);
-        if (layer > 0) c.drawText("▲ " + Game.LAYER_NAMES[layer - 1] + " – nach unten wischen", w / 2, w * 0.05f, label);
-        if (layer < Game.LAYERS - 1) c.drawText("▼ " + Game.LAYER_NAMES[layer + 1] + " – nach oben wischen", w / 2, h - w * 0.02f, label);
+        // Hinweise zum Wischen
+        label.setColor(0xCCFFFFFF);
+        label.setTextSize(w * 0.036f);
+        if (layer > 0 && !dragging) c.drawText("▼ runterwischen: " + Game.LAYER_NAMES[layer - 1], w * 0.25f, h - w * 0.025f, label);
+        if (layer < Game.LAYERS - 1 && !dragging) c.drawText("▲ hochwischen: " + Game.LAYER_NAMES[layer + 1], w * 0.75f, h - w * 0.025f, label);
+
+        postInvalidateDelayed(40);
+    }
+
+    /** Hintergrund rund ums Brett: Wolken, Wellen oder Luftblasen. */
+    private void drawScene(Canvas c, int l, float w, float h, float t) {
+        if (skies == null || skyH != (int) h) {
+            skyH = (int) h;
+            skies = new android.graphics.LinearGradient[]{
+                    new android.graphics.LinearGradient(0, 0, 0, h, 0xFF4E9BD8, 0xFFB5DCF7, android.graphics.Shader.TileMode.CLAMP),
+                    new android.graphics.LinearGradient(0, 0, 0, h, 0xFF2B7BBF, 0xFF0F4C86, android.graphics.Shader.TileMode.CLAMP),
+                    new android.graphics.LinearGradient(0, 0, 0, h, 0xFF0B2342, 0xFF030A16, android.graphics.Shader.TileMode.CLAMP)};
+        }
+        fill.setShader(skies[l]);
+        c.drawRect(0, 0, w, h, fill);
+        fill.setShader(null);
+
+        if (l == 0) {
+            // Wolken ziehen langsam vorbei
+            float[][] clouds = {{0.05f, 0.12f, 0.09f, 0.020f}, {0.6f, 0.07f, 0.07f, 0.03f}, {0.3f, 0.9f, 0.1f, 0.025f},
+                    {0.85f, 0.5f, 0.06f, 0.035f}, {0.15f, 0.55f, 0.07f, 0.028f}, {0.75f, 0.93f, 0.08f, 0.018f}};
+            for (float[] cl : clouds) {
+                float span = w * 1.4f;
+                float x = ((cl[0] * w + t * cl[3] * w) % span) - w * 0.2f;
+                float y = cl[1] * h, s = cl[2] * w;
+                fill.setColor(0xEEFFFFFF);
+                c.drawCircle(x, y, s, fill);
+                c.drawCircle(x + s * 0.9f, y + s * 0.15f, s * 0.8f, fill);
+                c.drawCircle(x - s * 0.9f, y + s * 0.2f, s * 0.7f, fill);
+                c.drawCircle(x + s * 0.3f, y - s * 0.5f, s * 0.75f, fill);
+                fill.setColor(0x33A0B8CC);
+                c.drawRect(x - s * 1.5f, y + s * 0.5f, x + s * 1.6f, y + s * 0.75f, fill);
+            }
+        } else if (l == 1) {
+            // Wellen
+            stroke.setColor(0x66FFFFFF);
+            stroke.setStrokeWidth(w * 0.006f);
+            for (int row = 0; row < 14; row++) {
+                float y = h * (row + 0.5f) / 14f;
+                float amp = w * 0.008f;
+                float shift = (float) Math.sin(t * 0.8f + row) * w * 0.03f;
+                for (int k = -1; k < 7; k++) {
+                    float x = k * w / 6f + shift + (row % 2) * w / 12f;
+                    path.reset();
+                    path.moveTo(x, y);
+                    path.quadTo(x + w * 0.03f, y - amp * 2, x + w * 0.06f, y);
+                    c.drawPath(path, stroke);
+                }
+            }
+            // Gischt
+            fill.setColor(0x55FFFFFF);
+            for (int k = 0; k < 18; k++) {
+                float x = (k * 0.137f % 1f) * w, y = (k * 0.311f % 1f) * h;
+                float a = (float) (0.5 + 0.5 * Math.sin(t * 2 + k));
+                fill.setAlpha(Math.round(90 * a));
+                c.drawCircle(x, y, w * 0.006f, fill);
+            }
+            fill.setAlpha(255);
+        } else {
+            // Luftblasen steigen auf
+            stroke.setStrokeWidth(w * 0.004f);
+            for (int k = 0; k < 26; k++) {
+                float speed = 0.05f + (k % 5) * 0.02f;
+                float x0 = (k * 0.173f % 1f) * w;
+                float y = h - (((k * 0.29f) + t * speed) % 1.1f) * h;
+                float x = x0 + (float) Math.sin(t * 1.5f + k) * w * 0.012f;
+                float rad = w * (0.006f + (k % 4) * 0.004f);
+                stroke.setColor(0x99BFE3FF);
+                c.drawCircle(x, y, rad, stroke);
+                fill.setColor(0x55FFFFFF);
+                c.drawCircle(x - rad * 0.35f, y - rad * 0.35f, rad * 0.3f, fill);
+            }
+            // Lichtstrahlen von oben
+            fill.setColor(0x10FFFFFF);
+            for (int k = 0; k < 3; k++) {
+                float x = w * (0.2f + k * 0.3f) + (float) Math.sin(t * 0.3f + k) * w * 0.03f;
+                path.reset();
+                path.moveTo(x - w * 0.03f, 0);
+                path.lineTo(x + w * 0.03f, 0);
+                path.lineTo(x + w * 0.12f, h);
+                path.lineTo(x - w * 0.02f, h);
+                path.close();
+                c.drawPath(path, fill);
+            }
+        }
     }
 
     /** Zeichnet eine Ebene in ein Quadrat 0..w (mit Beschriftungsrand). */
@@ -167,7 +266,7 @@ public class GameView extends View {
         float cs = w / (n + 1);
 
         fill.setColor(0xFF15253A);
-        r.set(0, 0, w, w);
+        r.set(0, 0, w + cs, w + cs);
         c.drawRoundRect(r, cs * 0.3f, cs * 0.3f, fill);
 
         label.setColor(0xFFCFD8E3);
@@ -447,50 +546,69 @@ public class GameView extends View {
 
     @Override
     public boolean onTouchEvent(MotionEvent e) {
+        float h = getHeight();
         switch (e.getAction()) {
             case MotionEvent.ACTION_DOWN:
                 downX = e.getX();
                 downY = e.getY();
+                dragging = false;
                 if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
                 return true;
-            case MotionEvent.ACTION_UP: {
+            case MotionEvent.ACTION_MOVE: {
                 float dx = e.getX() - downX, dy = e.getY() - downY;
-                float slop = getWidth() * 0.08f;
-                if (Math.abs(dy) > slop && Math.abs(dy) > Math.abs(dx)) {
-                    changeLayer(dy > 0 ? layer - 1 : layer + 1);
-                } else if (Math.abs(dx) < slop && Math.abs(dy) < slop) {
+                float slop = getWidth() * 0.04f;
+                if (!dragging && Math.abs(dy) > slop && Math.abs(dy) > Math.abs(dx)) {
+                    dragging = true;
+                    ValueAnimator old = anim;
+                    anim = null;
+                    if (old != null) old.cancel();
+                }
+                if (dragging) {
+                    float p = layer - dy / h;
+                    pos = Math.max(-0.2f, Math.min(Game.LAYERS - 0.8f, p));
+                    invalidate();
+                }
+                return true;
+            }
+            case MotionEvent.ACTION_UP: {
+                float dy = e.getY() - downY;
+                if (dragging) {
+                    dragging = false;
+                    float moved = -dy / h;
+                    int target = layer;
+                    if (moved > 0.12f) target = layer + 1;
+                    else if (moved < -0.12f) target = layer - 1;
+                    if (target < 0 || target >= Game.LAYERS) target = layer;
+                    boolean changed = target != layer;
+                    setLayer(target);
+                    if (changed && layerListener != null) layerListener.onLayer(target);
+                } else {
                     tap(e.getX(), e.getY());
                 }
                 performClick();
                 return true;
             }
             case MotionEvent.ACTION_CANCEL:
+                if (dragging) {
+                    dragging = false;
+                    setLayer(layer);
+                }
                 return true;
             default:
                 return true;
         }
     }
 
-    private void changeLayer(int target) {
-        if (target < 0 || target >= Game.LAYERS || target == layer) return;
-        setLayer(target);
-        if (layerListener != null) layerListener.onLayer(target);
-    }
-
     private void tap(float x, float y) {
-        float top = boardTop();
-        if (y < top) {
-            changeLayer(layer - 1);
-            return;
-        }
-        if (y > top + getWidth()) {
-            changeLayer(layer + 1);
-            return;
-        }
-        if (anim != null) return;
+        if (anim != null || pos != layer) return;
+        boardMatrix(mtx, getWidth(), getHeight());
+        if (!mtx.invert(inv)) return;
+        pt[0] = x;
+        pt[1] = y;
+        inv.mapPoints(pt);
         float cs = getWidth() / (float) (Game.N + 1);
-        int cx = (int) (x / cs) - 1;
-        int cy = (int) ((y - top) / cs) - 1;
+        int cx = (int) Math.floor(pt[0] / cs) - 1;
+        int cy = (int) Math.floor(pt[1] / cs) - 1;
         if (cx >= 0 && cy >= 0 && cx < Game.N && cy < Game.N && listener != null) {
             listener.onCell(cx, cy);
         }
