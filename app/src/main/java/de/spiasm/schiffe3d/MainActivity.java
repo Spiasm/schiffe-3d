@@ -45,6 +45,7 @@ public class MainActivity extends Activity implements BtLink.Listener {
     private BluetoothAdapter adapter;
     private BtLink link;
     private Bot bot;
+    private Sfx sfx;
     private final Game game = new Game();
     private final Random random = new Random();
     private String peerName = "Gegner";
@@ -71,6 +72,8 @@ public class MainActivity extends Activity implements BtLink.Listener {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         BluetoothManager bm = (BluetoothManager) getSystemService(BLUETOOTH_SERVICE);
         adapter = bm == null ? null : bm.getAdapter();
+        sfx = new Sfx();
+        sfx.enabled = getPreferences(MODE_PRIVATE).getBoolean("sound", true);
         showMenu(null);
     }
 
@@ -261,12 +264,15 @@ public class MainActivity extends Activity implements BtLink.Listener {
             Game.Ship s = game.ships[res[1]];
             send("RES " + l + " " + x + " " + y + " 2 " + s.x + " " + s.y + " " + s.len + " " + (s.horiz ? 1 : 0));
             setInfo("💥 " + peerName + " hat deinen " + s.name + " versenkt! (" + where + ")");
+            sfx.play(Sfx.BIG);
         } else if (res[0] == 1) {
             send("RES " + l + " " + x + " " + y + " 1");
             setInfo("🔥 " + peerName + " hat getroffen: " + where);
+            sfx.play(Sfx.BOOM);
         } else {
             send("RES " + l + " " + x + " " + y + " 0");
             setInfo("💦 " + peerName + " hat daneben geschossen: " + where);
+            sfx.play(Sfx.SPLASH);
             myTurn = true;
         }
         if (game.defeated()) {
@@ -286,6 +292,7 @@ public class MainActivity extends Activity implements BtLink.Listener {
             game.enemy[l][x][y] = 1;
             myTurn = false;
             setInfo("💦 Daneben (" + where + "). Jetzt ist " + peerName + " dran.");
+            sfx.play(Sfx.SPLASH);
         } else {
             if (game.enemy[l][x][y] == 0) game.enemyHits++;
             game.enemy[l][x][y] = 2;
@@ -293,8 +300,10 @@ public class MainActivity extends Activity implements BtLink.Listener {
                 game.markSunk(l, Integer.parseInt(p[5]), Integer.parseInt(p[6]), Integer.parseInt(p[7]), "1".equals(p[8]));
                 game.enemySunk[l]++;
                 setInfo("💥 Versenkt! (" + where + ") Du darfst nochmal.");
+                sfx.play(Sfx.BIG);
             } else {
                 setInfo("🔥 Treffer! (" + where + ") Du darfst nochmal.");
+                sfx.play(Sfx.BOOM);
             }
         }
         if (game.enemyHits >= Game.totalCells()) {
@@ -310,6 +319,7 @@ public class MainActivity extends Activity implements BtLink.Listener {
         send("SCANRES " + l + " " + x + " " + y + " " + n);
         setInfo((l == 0 ? "📡 " + peerName + " hat mit dem Radar" : "🔊 " + peerName + " hat mit dem Sonar")
                 + " um " + Game.cellName(x, y) + " gesucht.");
+        sfx.play(Sfx.PING);
         myTurn = true;
         refreshBattle();
     }
@@ -318,6 +328,7 @@ public class MainActivity extends Activity implements BtLink.Listener {
         if (!Game.valid(l, x, y)) return;
         waiting = false;
         game.scans.add(new int[]{l, x, y, n});
+        sfx.play(Sfx.PING);
         myTurn = false;
         setInfo((l == 0 ? "📡 Radar: " : "🔊 Sonar: ") + n + (n == 1 ? " Feld" : " Felder")
                 + " im gelben Bereich belegt. Jetzt ist " + peerName + " dran.");
@@ -349,6 +360,7 @@ public class MainActivity extends Activity implements BtLink.Listener {
             return;
         }
         waiting = true;
+        sfx.play(Sfx.SHOT);
         send("SHOT " + l + " " + x + " " + y);
         setInfo("Schuss auf " + Game.LAYER_NAMES[l] + " " + Game.cellName(x, y) + "…");
         refreshBattle();
@@ -365,7 +377,7 @@ public class MainActivity extends Activity implements BtLink.Listener {
         add(button("🛰  Spiel erstellen", ACCENT, v -> withBluetooth(this::hostGame)));
         add(button("🔗  Spiel beitreten", ACCENT, v -> withBluetooth(this::showPick)));
         add(button("🤖  Gegen den Computer", GREEN, v -> showBotPick()));
-        add(button("📖  Spielregeln", BTN, v -> showRules()));
+        add(row(button("📖  Spielregeln", BTN, v -> showRules()), soundButton()));
         add(text("So geht's:\n1. Koppelt eure Handys einmal in den Bluetooth-Einstellungen.\n"
                 + "2. Einer tippt „Spiel erstellen“.\n3. Der andere tippt „Spiel beitreten“ und wählt das Handy aus.",
                 14, 0xFF9FB3C8, false));
@@ -468,6 +480,11 @@ public class MainActivity extends Activity implements BtLink.Listener {
         board.game = game;
         board.enemyView = false;
         board.listener = this::onPlaceTap;
+        board.layerListener = l -> {
+            viewLayer = l;
+            refreshPlace();
+        };
+        board.jumpToLayer(viewLayer);
         add(board);
         info = text("", 16, Color.WHITE, false);
         add(info);
@@ -535,7 +552,7 @@ public class MainActivity extends Activity implements BtLink.Listener {
             t.setText(Game.LAYER_ICONS[i] + " " + Game.LAYER_NAMES[i] + (done ? " ✔" : ""));
             setColor(t, i == viewLayer ? GameView.LAYER_BG[i] : BTN);
         }
-        board.layer = viewLayer;
+        board.setLayer(viewLayer);
         board.invalidate();
         int next = game.nextUnplaced(viewLayer);
         if (meReady) {
@@ -577,6 +594,12 @@ public class MainActivity extends Activity implements BtLink.Listener {
         board = new GameView(this);
         board.game = game;
         board.listener = this::onBattleTap;
+        board.layerListener = l -> {
+            viewLayer = l;
+            if (scanMode >= 0 && scanMode != l) scanMode = -1;
+            refreshBattle();
+        };
+        board.jumpToLayer(viewLayer);
         add(board);
         btnRadar = button("", BTN, v -> toggleScan(0));
         btnSonar = button("", BTN, v -> toggleScan(2));
@@ -584,7 +607,7 @@ public class MainActivity extends Activity implements BtLink.Listener {
         info = text("", 16, Color.WHITE, false);
         add(info);
         Button leave = button("Spiel verlassen", BTN, v -> onBackPressed());
-        add(leave);
+        add(row(soundButton(), leave));
         refreshBattle();
     }
 
@@ -625,8 +648,8 @@ public class MainActivity extends Activity implements BtLink.Listener {
             t.setText(Game.LAYER_ICONS[i] + " " + Game.LAYER_NAMES[i] + " (" + left + ")");
             setColor(t, i == viewLayer ? GameView.LAYER_BG[i] : BTN);
         }
-        board.layer = viewLayer;
         board.enemyView = viewEnemy;
+        board.setLayer(viewLayer);
         board.invalidate();
         boolean canAct = myTurn && !waiting;
         btnRadar.setText(game.radarUsed ? "📡 Radar (weg)" : scanMode == 0 ? "📡 Radar: abbrechen" : "📡 Radar");
@@ -639,6 +662,7 @@ public class MainActivity extends Activity implements BtLink.Listener {
 
     private void showEnd(boolean won) {
         state = S_END;
+        sfx.play(won ? Sfx.WIN : Sfx.LOSE, 600);
         newScreen();
         add(text(won ? "🏆 Gewonnen!" : "💥 Verloren!", 36, won ? 0xFF81C784 : 0xFFE57373, true));
         add(text(won ? "Du hast die komplette Flotte von " + peerName + " versenkt."
@@ -654,6 +678,18 @@ public class MainActivity extends Activity implements BtLink.Listener {
     }
 
     // ---------------------------------------------------------------- Helfer
+
+    private Button soundButton() {
+        final Button b = button("", BTN, null);
+        b.setText(sfx.enabled ? "🔊 Ton an" : "🔇 Ton aus");
+        b.setOnClickListener(v -> {
+            sfx.enabled = !sfx.enabled;
+            getPreferences(MODE_PRIVATE).edit().putBoolean("sound", sfx.enabled).apply();
+            b.setText(sfx.enabled ? "🔊 Ton an" : "🔇 Ton aus");
+            if (sfx.enabled) sfx.play(Sfx.PING);
+        });
+        return b;
+    }
 
     private LinearLayout layerTabRow() {
         layerTabs.clear();

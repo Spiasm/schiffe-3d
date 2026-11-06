@@ -48,6 +48,8 @@ public class Game {
     public int ownLost;
     /** Radar/Sonar-Ergebnisse: {Ebene, x, y, Anzahl} */
     public final List<int[]> scans = new ArrayList<>();
+    /** Versenkte Gegnerschiffe: {Ebene, x, y, Länge, waagrecht 1/0} */
+    public final List<int[]> enemyWrecks = new ArrayList<>();
     public boolean radarUsed, sonarUsed;
 
     public Game() {
@@ -71,6 +73,7 @@ public class Game {
         enemyHits = 0;
         ownLost = 0;
         scans.clear();
+        enemyWrecks.clear();
         radarUsed = false;
         sonarUsed = false;
     }
@@ -186,6 +189,7 @@ public class Game {
     }
 
     public void markSunk(int l, int sx, int sy, int len, boolean h) {
+        enemyWrecks.add(new int[]{l, sx, sy, len, h ? 1 : 0});
         for (int i = 0; i < len; i++) {
             int cx = h ? sx + i : sx;
             int cy = h ? sy : sy + i;
