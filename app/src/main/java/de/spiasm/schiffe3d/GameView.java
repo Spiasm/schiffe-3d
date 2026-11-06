@@ -54,6 +54,16 @@ public class GameView extends View {
     private android.graphics.LinearGradient[] skies;
     private int skyH;
 
+    public GameView(Context c) {
+        super(c);
+        label.setTextAlign(Paint.Align.CENTER);
+        line.setColor(0x55FFFFFF);
+        line.setStyle(Paint.Style.STROKE);
+        stroke.setStyle(Paint.Style.STROKE);
+        stroke.setStrokeCap(Paint.Cap.ROUND);
+        stroke.setStrokeJoin(Paint.Join.ROUND);
+    }
+
     /** Ebene wechseln, mit Animation (auch zurückfedern, wenn target == layer). */
     public void setLayer(int target) {
         if (target < 0 || target >= Game.LAYERS) return;
