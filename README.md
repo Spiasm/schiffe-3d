@@ -12,6 +12,8 @@ Schiffe versenken mit drei Ebenen – ✈ Luft, 🚢 Wasser, ⚓ Tiefe – für 
 2. Einer tippt „Spiel erstellen“, der andere „Spiel beitreten“ und wählt das Handy aus.
 3. Flotte aufstellen, „Fertig“ tippen – los geht's.
 
+Oder alleine: **🤖 Gegen den Computer** (Leicht oder Normal).
+
 ## Flotte
 
 | Ebene | Schiffe |

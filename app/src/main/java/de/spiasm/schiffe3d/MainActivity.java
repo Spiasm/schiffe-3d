@@ -44,6 +44,7 @@ public class MainActivity extends Activity implements BtLink.Listener {
 
     private BluetoothAdapter adapter;
     private BtLink link;
+    private Bot bot;
     private final Game game = new Game();
     private final Random random = new Random();
     private String peerName = "Gegner";
@@ -87,7 +88,7 @@ public class MainActivity extends Activity implements BtLink.Listener {
             showMenu(null);
         } else {
             new AlertDialog.Builder(this)
-                    .setMessage("Spiel verlassen? Die Verbindung wird getrennt.")
+                    .setMessage(bot != null ? "Spiel verlassen?" : "Spiel verlassen? Die Verbindung wird getrennt.")
                     .setPositiveButton("Verlassen", (d, w) -> {
                         closeLink();
                         showMenu(null);
@@ -147,10 +148,34 @@ public class MainActivity extends Activity implements BtLink.Listener {
             link.close();
             link = null;
         }
+        if (bot != null) {
+            bot.stop();
+            bot = null;
+        }
     }
 
     private void send(String msg) {
-        if (link != null) link.send(msg);
+        if (bot != null) bot.receive(msg);
+        else if (link != null) link.send(msg);
+    }
+
+    private void startBot(boolean smart) {
+        closeLink();
+        isHost = true;
+        peerName = "Computer";
+        bot = new Bot(this::onMessage, smart);
+        startNewRound();
+        bot.start();
+    }
+
+    private void showBotPick() {
+        state = S_RULES;
+        newScreen();
+        add(text("🤖 Gegen den Computer", 24, Color.WHITE, true));
+        add(text("Wie schlau soll der Computer sein?", 16, 0xFF9FB3C8, false));
+        add(button("😊  Leicht – schießt wild drauflos", GREEN, v -> startBot(false)));
+        add(button("😈  Normal – jagt getroffene Schiffe gezielt", RED, v -> startBot(true)));
+        add(button("Zurück", BTN, v -> showMenu(null)));
     }
 
     @Override
@@ -339,6 +364,7 @@ public class MainActivity extends Activity implements BtLink.Listener {
         if (message != null) add(text(message, 15, 0xFFFFB74D, false));
         add(button("🛰  Spiel erstellen", ACCENT, v -> withBluetooth(this::hostGame)));
         add(button("🔗  Spiel beitreten", ACCENT, v -> withBluetooth(this::showPick)));
+        add(button("🤖  Gegen den Computer", GREEN, v -> showBotPick()));
         add(button("📖  Spielregeln", BTN, v -> showRules()));
         add(text("So geht's:\n1. Koppelt eure Handys einmal in den Bluetooth-Einstellungen.\n"
                 + "2. Einer tippt „Spiel erstellen“.\n3. Der andere tippt „Spiel beitreten“ und wählt das Handy aus.",
