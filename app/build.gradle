@@ -18,7 +18,7 @@ android {
 
     signingConfigs {
         fixed {
-            // Schlüssel liegt verschlüsselt im Projekt; das Passwort steht geheim bei GitHub (Secret KEYSTORE_PASS)
+            // Der Schlüssel liegt geheim bei GitHub (Settings → Secrets) und wird nur beim Bauen hineingelegt
             storeFile file('release.keystore')
             storePassword System.getenv('KEYSTORE_PASS')
             keyAlias 'app'

@@ -24,9 +24,7 @@ jobs:
           gradle-version: '8.11.1'
 
       - name: Geheimen Schlüssel holen
-        env:
-          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
-        run: openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in app/release.keystore.enc -out app/release.keystore -pass env:KEYSTORE_PASS
+        run: echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > app/release.keystore
 
       - name: APK bauen
         env:
