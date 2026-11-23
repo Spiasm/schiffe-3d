@@ -381,6 +381,7 @@ public class MainActivity extends Activity implements BtLink.Listener {
         add(text("So geht's:\n1. Koppelt eure Handys einmal in den Bluetooth-Einstellungen.\n"
                 + "2. Einer tippt „Spiel erstellen“.\n3. Der andere tippt „Spiel beitreten“ und wählt das Handy aus.",
                 14, 0xFF9FB3C8, false));
+        add(text("© 2026 SM", 12, 0xFF6F8296, false));
     }
 
     private void showRules() {
@@ -396,7 +397,7 @@ public class MainActivity extends Activity implements BtLink.Listener {
                 + "📡 Radar (1× pro Spiel): zeigt, wie viele Felder in einem 3×3-Bereich der Luft belegt sind.\n"
                 + "🔊 Sonar (1× pro Spiel): dasselbe für die Tiefe.\n"
                 + "Radar und Sonar kosten deinen Zug.\n\n"
-                + "Wer zuerst alle Schiffe des anderen versenkt, gewinnt!",
+                + "Wer zuerst alle Schiffe des anderen versenkt, gewinnt!\n\n© 2026 SM",
                 16, 0xFFDDE6F0, false));
         add(button("Zurück", BTN, v -> showMenu(null)));
     }
