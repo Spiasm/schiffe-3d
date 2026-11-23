@@ -18,10 +18,11 @@ android {
 
     signingConfigs {
         fixed {
-            storeFile file('schiffe3d.keystore')
-            storePassword 'schiffe3d'
-            keyAlias 'schiffe3d'
-            keyPassword 'schiffe3d'
+            // Der Schlüssel liegt geheim bei GitHub (Settings → Secrets) und wird nur beim Bauen hineingelegt
+            storeFile file('release.keystore')
+            storePassword System.getenv('KEYSTORE_PASS')
+            keyAlias 'app'
+            keyPassword System.getenv('KEYSTORE_PASS')
         }
     }
 
